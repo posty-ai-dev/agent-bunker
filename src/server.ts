@@ -24,6 +24,7 @@ const PROGRESS_FILE = resolve(process.env.PROGRESS_FILE || './data/progress.json
 const LOGS_DIR = resolve(process.env.LOGS_DIR || './data/logs')
 const USAGE_SCRIPT = process.env.USAGE_SCRIPT || ''
 const SKILL_DIRS = (process.env.SKILL_DIRS || './data/skills').split(',').map(d => resolve(d.trim()))
+const MCP_README = process.env.MCP_README || ''
 
 // Optional integrations
 const MOLTBOOK_API_TOKEN = process.env.MOLTBOOK_API_TOKEN || ''
@@ -455,6 +456,96 @@ app.get('/agents/playground', async (_req, res) => {
   }
 })
 
+// ─── MCP Explorer endpoint ──────────────────────────────────────────────────
+
+interface McpServer {
+  name: string
+  description: string
+  url: string
+  category: string
+  lang: string[]
+  scope: string[]
+  official: boolean
+}
+
+let mcpCache: { data: McpServer[]; categories: string[]; fetchedAt: number } | null = null
+const MCP_TTL = 60 * 60 * 1000 // 1 hour
+
+function parseMcpReadme(content: string): { servers: McpServer[]; categories: string[] } {
+  const servers: McpServer[] = []
+  const categories: string[] = []
+  let currentCategory = ''
+
+  const langMap: Record<string, string> = {
+    '🐍': 'Python', '📇': 'TypeScript', '🏎️': 'Go', '🦀': 'Rust',
+    '#️⃣': 'C#', '☕': 'Java', '🌊': 'C/C++', '💎': 'Ruby',
+  }
+  const scopeMap: Record<string, string> = {
+    '☁️': 'Cloud', '🏠': 'Local', '📟': 'Embedded',
+  }
+
+  for (const line of content.split('\n')) {
+    const catMatch = line.match(/^###\s+.*<a name="([^"]+)"><\/a>(.+)$/)
+    if (catMatch) {
+      currentCategory = catMatch[2].trim().replace(/\p{Emoji}/gu, '').trim()
+      if (currentCategory && !categories.includes(currentCategory)) {
+        categories.push(currentCategory)
+      }
+      continue
+    }
+
+    if (!line.startsWith('- ') || !currentCategory) continue
+    if (['What is MCP?', 'Clients', 'Tutorials', 'Community', 'Legend', 'Frameworks', 'Tips & Tricks'].includes(currentCategory)) continue
+
+    const linkMatch = line.match(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/)
+    if (!linkMatch) continue
+
+    const name = linkMatch[1]
+    const url = linkMatch[2]
+
+    const stripped = line
+      .replace(/\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)/g, '')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    const descMatch = stripped.match(/\)\s*[-–]\s*(.+)$/)
+    const description = descMatch
+      ? descMatch[1].replace(/\*\*/g, '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').trim()
+      : ''
+
+    const langs: string[] = []
+    const scopes: string[] = []
+    for (const [emoji, label] of Object.entries(langMap)) {
+      if (line.includes(emoji)) langs.push(label)
+    }
+    for (const [emoji, label] of Object.entries(scopeMap)) {
+      if (line.includes(emoji)) scopes.push(label)
+    }
+    const official = line.includes('🎖️')
+
+    if (name && url) {
+      servers.push({ name, description, url, category: currentCategory, lang: langs, scope: scopes, official })
+    }
+  }
+
+  return { servers, categories: categories.sort() }
+}
+
+app.get('/mcp/servers', async (_req, res) => {
+  if (!MCP_README) {
+    return res.status(501).json({ error: 'MCP Explorer not configured. Set MCP_README in .env to the path of an awesome-mcp-servers README.md' })
+  }
+  try {
+    if (mcpCache && Date.now() - mcpCache.fetchedAt < MCP_TTL) {
+      return res.json(mcpCache)
+    }
+    const content = await readFile(MCP_README, 'utf-8')
+    const { servers, categories } = parseMcpReadme(content)
+    mcpCache = { data: servers, categories, fetchedAt: Date.now() }
+    res.json(mcpCache)
+  } catch (e: any) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 // ─── Start server ───────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
@@ -464,4 +555,5 @@ app.listen(PORT, () => {
   console.log(`  Activity:   ${ACTIVITY_FILE}`)
   console.log(`  Moltbook:   ${MOLTBOOK_API_TOKEN ? 'enabled' : 'disabled'}`)
   console.log(`  Usage:      ${USAGE_SCRIPT || 'disabled'}`)
+  console.log(`  MCP:        ${MCP_README || 'disabled'}`)
 })
