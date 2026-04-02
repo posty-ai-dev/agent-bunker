@@ -8,8 +8,9 @@ import MoltbookTab from './components/tabs/MoltbookTab'
 import CronTab from './components/tabs/CronTab'
 import GitHubTrendingTab from './components/tabs/GitHubTrendingTab'
 import AgentsPlaygroundTab from './components/tabs/AgentsPlaygroundTab'
+import McpExplorerTab from './components/tabs/McpExplorerTab'
 
-export type TabId = 'activity' | 'moltbook' | 'usage' | 'skills' | 'editor' | 'cron' | 'trending' | 'agents'
+export type TabId = 'activity' | 'moltbook' | 'usage' | 'skills' | 'editor' | 'cron' | 'trending' | 'agents' | 'mcp'
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabId>('activity')
@@ -24,6 +25,7 @@ export default function App() {
       case 'cron': return <CronTab />
       case 'trending': return <GitHubTrendingTab />
       case 'agents': return <AgentsPlaygroundTab />
+      case 'mcp': return <McpExplorerTab />
     }
   }
 

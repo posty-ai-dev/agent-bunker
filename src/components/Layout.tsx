@@ -10,6 +10,7 @@ import {
   Timer,
   TrendingUp,
   Cpu,
+  Package,
 } from 'lucide-react'
 import type { TabId } from '../App'
 import { cn, apiFetch } from '../lib/utils'
@@ -23,6 +24,7 @@ const tabs: { id: TabId; label: string; icon?: typeof Activity; emoji?: string }
   { id: 'usage', label: 'Usage', icon: BarChart3 },
   { id: 'skills', label: 'Skills', icon: Puzzle },
   { id: 'editor', label: 'Editor', icon: FileCode2 },
+  { id: 'mcp', label: 'MCP Explorer', icon: Package },
 ]
 
 interface LayoutProps {
